@@ -5,14 +5,12 @@ from struct import Struct
 from collections import deque, namedtuple
 from string import printable
 from textwrap import wrap
-
-f = open("boop.syx", 'rb')
-
-i = 0
+import mido
 
 TC_MANUFACTURER_ID = (0x00,0x20,0x1f)
 
 TC_MODELS = {
+    0x10 : 'Header',
     0x11 : 'G-Force',
     0x40 : 'FireworX',
     0x42 : 'M3000',
@@ -29,13 +27,11 @@ def unpack_bytes(msb, lsb):
             result = (msb << 4) + lsb
             return result
         else:
-            print "Invalid nibble in LSB"
+            raise ValueError('Invalid nibble in LSB')
     else:
-        print "Invalid nibble in MSB"
+        raise ValueError('Invalid nibble in MSB')
 
-    if result < 0 or result > 255:
-        print "Value out of range!"
-    return None
+    raise RuntimeError('Unpacking failed for an unknown reason')
 
 
 def filterchar(c):
@@ -58,41 +54,12 @@ StructPreset = Struct('<' # Little Endian
 )
 TuplePreset = namedtuple("Preset", "number name data")
 
-
-# Transmission Record Structure
-StructSysex = Struct('<' # Little Endian
-    + 'B'# Head (F0)
-    + 'BBB' # Manufacturer ID (00 20 1f)
-    + 'B' # SysEx Device ID
-    + 'B' # Model ID
-    + 'B' # Chunk number
-    + 'B'*128 # Payload data, encoded as single bytes across byte pairs of two nibbles
-    + 'B' # Checksum, possibly two bytes?
-    + 'x' # Tail (F7)
-)
-
-
-buf = ''
-chunks = []
-c = True
-while c:
-    i += 1
-    c = f.read(1)
-    buf += c
-    if c == '\xf7': # End of buffer marker
-        i = 0
-        if len(buf) == 137:
-            chunks.append(deque(StructSysex.unpack(buf)))
-        buf = ''
-    #elif c == '':
-    #    break
+messages = mido.read_syx_file('boop2.syx')
 
 presets = []
 
-for chunk in chunks:
-    #print ("%02x "*7) % tuple(chunk[0:7])
-    #print ("%02x "*66) % tuple(chunk[7:73])
-    print "Header: %02x" % chunk.popleft()
+for message in messages:
+    chunk = deque(message.data)
     print "ManuID: %02x-%02x-%02x" % (chunk.popleft() ,chunk.popleft(), chunk.popleft())
     print "Device: %02x" % chunk.popleft()
     model_id = chunk.popleft()
